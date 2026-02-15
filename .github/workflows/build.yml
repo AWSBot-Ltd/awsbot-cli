@@ -6,6 +6,17 @@ on:
     tags: ['v*.*.*']
   pull_request:
     branches: [main, master]
+  # Enables manual triggering from the "Actions" tab
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Where to publish?'
+        required: true
+        default: 'testpypi'
+        type: choice
+        options:
+          - testpypi
+          - pypi
 
 jobs:
   test:
@@ -15,23 +26,19 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"] # Note: 3.14 is currently in dev/alpha
 
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Poetry
         run: pipx install poetry
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'poetry'
-
       - name: Install dependencies
         run: poetry install
-
       - name: Run Tests
         run: poetry run pytest
 
@@ -52,18 +59,23 @@ jobs:
           path: dist/
 
   publish:
-    name: Publish to PyPI
-    if: startsWith(github.ref, 'refs/tags/')
+    name: Publish to ${{ github.event.inputs.target_env || 'TestPyPI' }}
+    # Only run if triggered manually
+    if: github.event_name == 'workflow_dispatch'
     needs: [build]
     runs-on: ubuntu-latest
-    environment: pypi
+    environment: ${{ github.event.inputs.target_env }}
     permissions:
-      id-token: write  # Required for Trusted Publishing
+      id-token: write
     steps:
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           name: python-package-distributions
           path: dist/
-      - name: Publish to PyPI
+
+      - name: Publish to PyPI/TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # If target_env is testpypi, use the TestPyPI repository URL
+          repository-url: ${{ github.event.inputs.target_env == 'testpypi' && 'https://test.pypi.org/legacy/' || '' }}
