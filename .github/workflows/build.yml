@@ -1,0 +1,81 @@
+name: CI & CD
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main, master]
+  # Enables manual triggering from the "Actions" tab
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Where to publish?'
+        required: true
+        default: 'testpypi'
+        type: choice
+        options:
+          - testpypi
+          - pypi
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }} / Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Poetry
+        run: pipx install poetry
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'poetry'
+      - name: Install dependencies
+        run: poetry install
+      - name: Run Tests
+        run: poetry run pytest
+
+  build:
+    name: Build Distribution
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Poetry
+        run: pipx install poetry
+      - name: Build sdist and wheel
+        run: poetry build
+      - name: Store Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    # Only run if triggered manually
+    if: github.event_name == 'workflow_dispatch'
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.target_env }}
+    permissions:
+      id-token: write
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish to PyPI/TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # If target_env is testpypi, use the TestPyPI repository URL
+          repository-url: ${{ github.event.inputs.target_env == 'testpypi' && 'https://test.pypi.org/legacy/' || '' }}

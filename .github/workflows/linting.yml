@@ -1,0 +1,39 @@
+name: Linting
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # This job handles the shared setup logic
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # Ensures one failing linter doesn't kill the others
+      matrix:
+        linter: [pylint, black, flake8, ruff]
+
+    name: Lint check - ${{ matrix.linter }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: |
+          pipx install poetry
+          poetry self add poetry-plugin-export
+
+      - name: Set up Python 🤖
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11' # Matches your pyproject.toml
+          cache: poetry
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Run ${{ matrix.linter }}
+        # Keep continue-on-error only for the ones you want to bypass
+        continue-on-error: ${{ matrix.linter == 'pylint' }}
+        run: make ${{ matrix.linter }}

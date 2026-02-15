@@ -1,0 +1,121 @@
+# Python Compiled Files
+__pycache__
+*.pyc
+*.pyo
+
+# Emacs Temp Files
+*~
+*#
+.#*
+
+# Pycharm files
+.idea
+
+# VS Code files
+.vscode
+
+# Eclipse
+.project
+.pydevproject
+
+# Environment variables
+.env
+.env.shared
+
+# Local db
+db.sqlite3
+db.sqlite3.old
+
+# CSV/Excel files
+*.csv
+*.xlsx
+
+# ZIPPED CSV FILES
+*.zip
+
+# Code coverage reports
+.coverage
+.coverage_*
+htmlcov
+
+# OSX files
+.DS_Store
+
+# Pipenv config files
+Pipfile
+Pipfile.lock
+
+# Pyenv venv auto-activation file
+.python-version
+
+# Pytest
+.pytest_cache
+
+# Mypy
+.mypy_cache
+
+# Ruff
+.ruff_cache
+
+# Compiled message translations files
+*.mo
+
+# Log files
+*.log*
+
+# Static files
+agent/static/*
+api/staticfiles/*
+bemp/static/*
+staff/static/*
+
+# npm
+.npm
+node_modules
+
+# Poetry
+.poetry
+version.cfg
+venv
+
+# Rust
+/target
+build
+**/cobertura.xml
+**/tarpaulin-report.html
+
+# Terraform files
+.terraform
+
+# Docker and docker-compose storages volumes
+docker_volumes/
+
+# Misc
+test
+test-journal
+
+# temp.py temp folders
+temp.py
+temp/*
+
+
+test_this.py
+
+*.swp
+package-lock.json
+.venv
+*.egg-info
+
+# CDK asset staging directory
+gitlab_deploy_key*
+client_secret.json
+token.json
+*.ovpn
+*.key
+*.crt
+.s3_cache.json
+*.pem
+*.txt
+*.sql
+aws-bedrock-chat/
+awsbot_cli/cloudformation/
