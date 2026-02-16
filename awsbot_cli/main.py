@@ -5,7 +5,7 @@ from enum import Enum
 import typer
 
 # Import your new command modules
-from awsbot_cli.commands import auth, billing, ecr, infra, s3, vpn, workflow
+from awsbot_cli.commands import auth, billing, ecr, infra, s3, vpn, workflow, github
 from awsbot_cli.utils.config import load_config
 from awsbot_cli.utils.logger import set_log_format
 
@@ -19,7 +19,7 @@ app.add_typer(workflow.app, name="workflow")
 app.add_typer(ecr.app, name="ecr")
 app.add_typer(auth.app, name="auth")
 app.add_typer(vpn.app, name="vpn")
-
+app.add_typer(github.app, name="github")
 
 class LogFormat(str, Enum):
     text = "text"
