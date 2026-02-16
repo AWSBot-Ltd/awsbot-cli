@@ -2,6 +2,7 @@ import boto3
 import typer
 from botocore.exceptions import ClientError
 from rich import print
+from rich.markup import escape  # <--- Add this import
 
 app = typer.Typer()
 
@@ -25,7 +26,8 @@ def create_secret(
         print(
             f"[green]Success![/green] Secret created: [bold]{response['Name']}[/bold]"
         )
-        print(f"ARN: {response['ARN']}")
+        # Use escape() to prevent :secret: from being turned into an emoji
+        print(f"ARN: {escape(response['ARN'])}")
 
     except ClientError as e:
         print(f"[red]Error:[/red] {e.response['Error']['Message']}")
