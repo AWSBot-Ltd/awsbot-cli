@@ -2,7 +2,6 @@ import pytest
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 from typer.testing import CliRunner
-from datetime import datetime, timezone, timedelta
 
 # Update this path to match your project structure
 from awsbot_cli.commands.vpn import app
@@ -59,7 +58,7 @@ def mock_boto():
 #         assert result.exit_code == 0
 #         assert "cvpn-12345" in result.stdout
 #         assert "vpn.example.com" in result.stdout
-        assert "available" in result.stdout
+#         assert "available" in result.stdout
 
 
 @pytest.mark.unit
