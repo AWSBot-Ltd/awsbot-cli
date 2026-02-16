@@ -69,3 +69,7 @@ install-hooks:
 # Run all hooks manually on all files
 pre-commit:
 	poetry run pre-commit run --all-files
+
+test-pip-install:
+	@echo "Installing from testpypi..."
+	pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ awsbot-cli
