@@ -35,7 +35,7 @@ def find_template():
 
 
 def get_jira_id(branch):
-    match = re.search(r"STS-\d{4}", branch)
+    match = re.search(r"[A-Z]+-\d+", branch)
     if match:
         print(f"🆔 Found Jira ID: {match.group(0)}")
         return match.group(0)
