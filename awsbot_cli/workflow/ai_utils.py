@@ -142,3 +142,40 @@ def get_gemini_review(diff_text):
     except Exception as e:
         print(f"❌ Error during review generation: {e}")
         return []
+
+
+def get_gemini_issue_content(user_prompt):
+    """
+    Generates a GitHub Issue title, body, and labels from a user prompt.
+    """
+    env = os.environ.copy()
+    env["NODE_OPTIONS"] = "--no-warnings"
+
+    # Updated prompt to include labels and colors
+    system_prompt = """
+    Convert the user's request into a professional GitHub Issue.
+    Return ONLY a raw JSON object with:
+    - "title": string
+    - "body": string (Markdown)
+    - "labels": list of objects with "name" and "color" (hex string, e.g., "#FF0000")
+    """
+
+    try:
+        process = subprocess.run(
+            ["gemini", "-m", GEMINI_MODEL, "-p", system_prompt],
+            input=user_prompt,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=60,
+        )
+
+        if process.returncode != 0:
+            return None
+
+        raw_output = process.stdout.strip()
+        clean_json = raw_output.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean_json)
+    except Exception as e:
+        print(f"❌ AI Generation Error: {e}")
+        return None

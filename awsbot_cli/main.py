@@ -5,7 +5,20 @@ from enum import Enum
 import typer
 
 # Import your new command modules
-from awsbot_cli.commands import auth, billing, ecr, infra, s3, vpn, workflow, github
+from awsbot_cli.commands import (
+    agent,
+    agent_config,
+    auth,
+    bedrock,
+    billing,
+    ecr,
+    github,
+    infra,
+    logs,
+    s3,
+    vpn,
+    workflow,
+)
 from awsbot_cli.utils.config import load_config
 from awsbot_cli.utils.logger import set_log_format
 
@@ -20,6 +33,11 @@ app.add_typer(ecr.app, name="ecr")
 app.add_typer(auth.app, name="auth")
 app.add_typer(vpn.app, name="vpn")
 app.add_typer(github.app, name="github")
+app.add_typer(logs.app, name="logs")
+app.add_typer(bedrock.app, name="bedrock")
+app.add_typer(agent.app, name="agent")
+app.add_typer(agent_config.app, name="agent-config")
+
 
 class LogFormat(str, Enum):
     text = "text"
@@ -28,9 +46,9 @@ class LogFormat(str, Enum):
 
 @app.callback()
 def cli_config(
-        ctx: typer.Context,
-        profile: str = typer.Option(None, "--profile", "-p", help="Switch context/profile"),
-        log_format: str = typer.Option("text", "--log-format", help="Output format"),
+    ctx: typer.Context,
+    profile: str = typer.Option(None, "--profile", "-p", help="Switch context/profile"),
+    log_format: str = typer.Option("text", "--log-format", help="Output format"),
 ):
     """
     Global configuration.
