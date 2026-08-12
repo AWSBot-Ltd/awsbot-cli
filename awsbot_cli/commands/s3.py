@@ -17,7 +17,12 @@ from awsbot_cli.reports.s3 import (
 from awsbot_cli.utils.common import format_bytes
 from awsbot_cli.utils.logger import print_formatted_output
 from awsbot_cli.utils.reporter import publish_report
-from awsbot_cli.utils.s3 import append_lifecycle_rule, resolve_buckets
+from awsbot_cli.utils.s3 import (
+    append_lifecycle_rule,
+    check_ssl_policy,
+    merge_ssl_policy,
+    resolve_buckets,
+)
 
 console = Console()
 app = typer.Typer(help="Manage S3 Buckets and Objects")
@@ -386,6 +391,123 @@ def apply_expiration(
             count += 1
 
     print(f"--- Finished. Updated {count} buckets. ---")
+
+
+def _resolve_https_targets(s3_client, bucket, all_buckets, file):
+    """Shared --bucket/--all/--file targeting + validation for the HTTPS commands."""
+    modes = [bool(bucket), all_buckets, bool(file)]
+    if sum(modes) != 1:
+        console.print(
+            "[red]Error:[/red] specify exactly one of --bucket, --all, or --file."
+        )
+        raise typer.Exit(1)
+
+    if file:
+        try:
+            with open(file, "r") as f:
+                return [
+                    line.strip()
+                    for line in f
+                    if line.strip() and not line.strip().startswith("#")
+                ]
+        except OSError as e:
+            console.print(f"[red]Error reading {file}:[/red] {e}")
+            raise typer.Exit(1)
+
+    return resolve_buckets(s3_client, bucket, None)
+
+
+@app.command("audit-https")
+def audit_https(
+    bucket: str = typer.Option(None, "--bucket", "-b", help="Target a specific bucket"),
+    all_buckets: bool = typer.Option(
+        False, "--all", help="Target every bucket in the account"
+    ),
+    file: str = typer.Option(
+        None, "--file", help="Path to a file of bucket names, one per line"
+    ),
+):
+    """
+    Report which buckets already deny non-HTTPS requests and which don't.
+    Read-only: makes no changes.
+    """
+    session = boto3.Session()
+    s3_client = session.client("s3")
+
+    target_buckets = _resolve_https_targets(s3_client, bucket, all_buckets, file)
+    if not target_buckets:
+        console.print("[yellow]No buckets to process.[/yellow]")
+        return
+
+    table = Table(title="HTTPS Enforcement Audit", header_style="bold magenta")
+    table.add_column("Bucket")
+    table.add_column("HTTPS Enforced", justify="center")
+
+    counts = {"COMPLIANT": 0, "NON_COMPLIANT": 0, "ERROR": 0}
+    marks = {
+        "COMPLIANT": "[green]✓ Yes[/green]",
+        "NON_COMPLIANT": "[red]✗ No[/red]",
+        "ERROR": "[yellow]⚠ Error[/yellow]",
+    }
+
+    for b_name in target_buckets:
+        status = check_ssl_policy(s3_client, b_name)
+        counts[status] += 1
+        table.add_row(b_name, marks[status])
+
+    console.print(table)
+    console.print(
+        f"--- {counts['COMPLIANT']} compliant, {counts['NON_COMPLIANT']} missing, "
+        f"{counts['ERROR']} errors (of {len(target_buckets)}) ---"
+    )
+
+
+@app.command("enforce-https")
+def enforce_https(
+    bucket: str = typer.Option(None, "--bucket", "-b", help="Target a specific bucket"),
+    all_buckets: bool = typer.Option(
+        False, "--all", help="Target every bucket in the account"
+    ),
+    file: str = typer.Option(
+        None, "--file", help="Path to a file of bucket names, one per line"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show planned changes without applying them"
+    ),
+):
+    """
+    Deny non-HTTPS (HTTP) requests on target buckets by merging an
+    AllowSSLRequestsOnly statement into each bucket's policy.
+    """
+    session = boto3.Session()
+    s3_client = session.client("s3")
+
+    target_buckets = _resolve_https_targets(s3_client, bucket, all_buckets, file)
+    if not target_buckets:
+        console.print("[yellow]No buckets to process.[/yellow]")
+        return
+
+    console.print(f"Found {len(target_buckets)} bucket(s) to process.")
+    console.print("--- Enforcing HTTPS-only Policy ---")
+
+    counts = {"CREATED": 0, "MODIFIED": 0, "SKIPPED": 0, "ERROR": 0}
+    colors = {
+        "CREATED": "green",
+        "MODIFIED": "green",
+        "SKIPPED": "yellow",
+        "ERROR": "red",
+    }
+
+    for b_name in target_buckets:
+        status = merge_ssl_policy(s3_client, b_name, dry_run=dry_run)
+        counts[status] += 1
+        console.print(f"[{colors[status]}][{status}][/{colors[status]}] {b_name}")
+
+    console.print(
+        f"--- Finished. Created: {counts['CREATED']}, "
+        f"Modified: {counts['MODIFIED']}, Skipped: {counts['SKIPPED']}, "
+        f"Errors: {counts['ERROR']} ---"
+    )
 
 
 @app.command(name="create-bucket")
