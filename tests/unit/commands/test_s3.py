@@ -49,6 +49,8 @@ def mock_utils():
         patch(f"{path}.resolve_buckets") as mock_resolve,
         patch(f"{path}.append_lifecycle_rule") as mock_append,
         patch(f"{path}.print_formatted_output") as mock_print_fmt,
+        patch(f"{path}.merge_ssl_policy") as mock_merge_ssl,
+        patch(f"{path}.check_ssl_policy") as mock_check_ssl,
     ):
         yield {
             "get_bucket_size": mock_size,
@@ -58,6 +60,8 @@ def mock_utils():
             "resolve_buckets": mock_resolve,
             "append_lifecycle_rule": mock_append,
             "print_formatted_output": mock_print_fmt,
+            "merge_ssl_policy": mock_merge_ssl,
+            "check_ssl_policy": mock_check_ssl,
         }
 
 
@@ -92,6 +96,102 @@ def test_report_command(mock_s3_client, mock_utils):
     first_row = kwargs["rows"][0]
     assert "bucket-a" in first_row
     assert "$0.02" in first_row  # 1GB * 0.023 rounded
+
+
+# --- Tests for audit-https ---
+
+
+def test_audit_https_requires_a_target(mock_s3_client, mock_utils):
+    """Command errors out if none of --bucket/--all/--file are given."""
+    result = runner.invoke(s3_cmd.app, ["audit-https"])
+
+    assert result.exit_code == 1
+    mock_utils["check_ssl_policy"].assert_not_called()
+
+
+def test_audit_https_table_output(mock_s3_client, mock_utils):
+    """Renders a table with a compliant and a non-compliant bucket."""
+    mock_utils["resolve_buckets"].return_value = ["good-bucket", "bad-bucket"]
+    mock_utils["check_ssl_policy"].side_effect = ["COMPLIANT", "NON_COMPLIANT"]
+
+    result = runner.invoke(s3_cmd.app, ["audit-https", "--all"])
+
+    assert result.exit_code == 0
+    output = strip_ansi(result.stdout)
+    assert "good-bucket" in output
+    assert "bad-bucket" in output
+    assert "Yes" in output
+    assert "No" in output
+    assert "1 compliant, 1 missing, 0 errors (of 2)" in output
+
+
+# --- Tests for enforce-https ---
+
+
+def test_enforce_https_requires_a_target(mock_s3_client, mock_utils):
+    """Command errors out if none of --bucket/--all/--file are given."""
+    result = runner.invoke(s3_cmd.app, ["enforce-https"])
+
+    assert result.exit_code == 1
+    mock_utils["resolve_buckets"].assert_not_called()
+    mock_utils["merge_ssl_policy"].assert_not_called()
+
+
+def test_enforce_https_rejects_multiple_targets(mock_s3_client, mock_utils):
+    """Command errors out if more than one targeting option is given."""
+    result = runner.invoke(s3_cmd.app, ["enforce-https", "--bucket", "b1", "--all"])
+
+    assert result.exit_code == 1
+    mock_utils["merge_ssl_policy"].assert_not_called()
+
+
+def test_enforce_https_single_bucket(mock_s3_client, mock_utils):
+    """--bucket resolves through resolve_buckets and applies the policy."""
+    mock_utils["resolve_buckets"].return_value = ["my-bucket"]
+    mock_utils["merge_ssl_policy"].return_value = "CREATED"
+
+    result = runner.invoke(s3_cmd.app, ["enforce-https", "--bucket", "my-bucket"])
+
+    assert result.exit_code == 0
+    mock_utils["resolve_buckets"].assert_called_once_with(
+        mock_s3_client, "my-bucket", None
+    )
+    mock_utils["merge_ssl_policy"].assert_called_once_with(
+        mock_s3_client, "my-bucket", dry_run=False
+    )
+    output = strip_ansi(result.stdout)
+    assert "[CREATED] my-bucket" in output
+
+
+def test_enforce_https_file_input(mock_s3_client, mock_utils, tmp_path):
+    """--file reads bucket names from disk, skipping blanks/comments."""
+    bucket_file = tmp_path / "buckets.txt"
+    bucket_file.write_text("# comment\nbucket-one\n\nbucket-two\n")
+    mock_utils["merge_ssl_policy"].side_effect = ["MODIFIED", "SKIPPED"]
+
+    result = runner.invoke(s3_cmd.app, ["enforce-https", "--file", str(bucket_file)])
+
+    assert result.exit_code == 0
+    mock_utils["resolve_buckets"].assert_not_called()
+    assert mock_utils["merge_ssl_policy"].call_count == 2
+    output = strip_ansi(result.stdout)
+    assert "[MODIFIED] bucket-one" in output
+    assert "[SKIPPED] bucket-two" in output
+
+
+def test_enforce_https_dry_run_passes_flag(mock_s3_client, mock_utils):
+    """--dry-run is forwarded through to merge_ssl_policy."""
+    mock_utils["resolve_buckets"].return_value = ["my-bucket"]
+    mock_utils["merge_ssl_policy"].return_value = "CREATED"
+
+    result = runner.invoke(
+        s3_cmd.app, ["enforce-https", "--bucket", "my-bucket", "--dry-run"]
+    )
+
+    assert result.exit_code == 0
+    mock_utils["merge_ssl_policy"].assert_called_once_with(
+        mock_s3_client, "my-bucket", dry_run=True
+    )
 
 
 # def test_clean_dry_run(mock_utils):

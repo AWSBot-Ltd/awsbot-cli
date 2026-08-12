@@ -1,3 +1,5 @@
+import json
+
 from botocore.exceptions import ClientError
 
 
@@ -38,6 +40,90 @@ def append_lifecycle_rule(s3_client, bucket_name, new_rule):
     except ClientError as e:
         print(f"  ❌ Failed to update {bucket_name}: {e}")
         return False
+
+
+def _load_bucket_policy(s3_client, bucket_name):
+    """
+    Fetches and parses bucket_name's policy.
+    Returns (policy_dict, had_policy, error_message); error_message is None
+    on success. If no policy exists, returns a fresh empty policy skeleton.
+    """
+    try:
+        response = s3_client.get_bucket_policy(Bucket=bucket_name)
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") == "NoSuchBucketPolicy":
+            return {"Version": "2012-10-17", "Statement": []}, False, None
+        return None, False, str(e)
+
+    try:
+        policy = json.loads(response["Policy"])
+    except json.JSONDecodeError as e:
+        return None, True, str(e)
+
+    return policy, True, None
+
+
+def has_ssl_only_statement(policy):
+    """Checks a parsed bucket policy dict for an AllowSSLRequestsOnly Sid."""
+    return any(
+        s.get("Sid") == "AllowSSLRequestsOnly" for s in policy.get("Statement", [])
+    )
+
+
+def check_ssl_policy(s3_client, bucket_name):
+    """
+    Read-only check: does bucket_name already deny non-HTTPS requests?
+    Returns one of: "COMPLIANT", "NON_COMPLIANT", "ERROR".
+    """
+    policy, _, error = _load_bucket_policy(s3_client, bucket_name)
+    if error is not None:
+        print(f"  ❌ Error fetching policy for {bucket_name}: {error}")
+        return "ERROR"
+
+    return "COMPLIANT" if has_ssl_only_statement(policy) else "NON_COMPLIANT"
+
+
+def merge_ssl_policy(s3_client, bucket_name, dry_run=False):
+    """
+    Ensures bucket_name's policy denies non-HTTPS requests, merging into
+    any existing policy without overwriting other statements.
+    Returns one of: "CREATED", "MODIFIED", "SKIPPED", "ERROR".
+    """
+    policy, had_policy, error = _load_bucket_policy(s3_client, bucket_name)
+    if error is not None:
+        print(f"  ❌ Error fetching policy for {bucket_name}: {error}")
+        return "ERROR"
+
+    if has_ssl_only_statement(policy):
+        print(f"  ⚠️  Skipping {bucket_name}: SSL-only statement already present.")
+        return "SKIPPED"
+
+    deny_statement = {
+        "Sid": "AllowSSLRequestsOnly",
+        "Effect": "Deny",
+        "Principal": "*",
+        "Action": "s3:*",
+        "Resource": [
+            f"arn:aws:s3:::{bucket_name}",
+            f"arn:aws:s3:::{bucket_name}/*",
+        ],
+        "Condition": {"Bool": {"aws:SecureTransport": "false"}},
+    }
+    policy.setdefault("Statement", []).append(deny_statement)
+    result = "MODIFIED" if had_policy else "CREATED"
+
+    if dry_run:
+        verb = "create" if result == "CREATED" else "modify"
+        print(f"  [DRY RUN] Would {verb} SSL-only policy for {bucket_name}")
+        return result
+
+    try:
+        s3_client.put_bucket_policy(Bucket=bucket_name, Policy=json.dumps(policy))
+    except ClientError as e:
+        print(f"  ❌ Failed to update policy for {bucket_name}: {e}")
+        return "ERROR"
+
+    return result
 
 
 def resolve_buckets(s3_client, bucket: str = None, filter_keyword: str = None):

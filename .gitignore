@@ -116,6 +116,7 @@ token.json
 .s3_cache.json
 *.pem
 *.txt
+!buckets.txt
 *.sql
 aws-bedrock-chat/
 awsbot_cli/cloudformation/

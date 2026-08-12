@@ -11,6 +11,8 @@ from awsbot_cli.commands import (
     auth,
     bedrock,
     billing,
+    cloudtrail,
+    ec2,
     ecr,
     github,
     infra,
@@ -34,6 +36,8 @@ app.add_typer(auth.app, name="auth")
 app.add_typer(vpn.app, name="vpn")
 app.add_typer(github.app, name="github")
 app.add_typer(logs.app, name="logs")
+app.add_typer(cloudtrail.app, name="cloudtrail")
+app.add_typer(ec2.app, name="ec2")
 app.add_typer(bedrock.app, name="bedrock")
 app.add_typer(agent.app, name="agent")
 app.add_typer(agent_config.app, name="agent-config")

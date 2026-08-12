@@ -1,0 +1,16 @@
+# One bucket name per line. Lines starting with # are ignored.
+#
+# This is a template, not real audit data — the sandbox this was generated
+# in has no working AWS credentials. Populate it by running an audit first:
+#
+#   awsbot-cli s3 enforce-https --all --dry-run
+#
+# and collecting the bucket names from any [CREATED]/[MODIFIED] lines
+# (those are the buckets currently missing the AllowSSLRequestsOnly
+# statement). Then run for real:
+#
+#   awsbot-cli s3 enforce-https --file buckets.txt
+#
+example-legacy-logs-bucket
+example-public-assets-bucket
+example-data-lake-raw
