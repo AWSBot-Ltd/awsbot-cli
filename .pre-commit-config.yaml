@@ -6,6 +6,10 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
+        # CloudFormation/SAM templates use short-form intrinsic tags (!Sub,
+        # !Ref, ...) that plain YAML parsers reject; these are validated
+        # separately via `sam validate --lint` / `cfn-lint`.
+        exclude: ^awsbot_cli/cloudformation/
       - id: check-added-large-files
         args: [--maxkb=1500]
 

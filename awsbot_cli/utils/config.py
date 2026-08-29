@@ -72,3 +72,26 @@ def get_profile(profile_name: str = None) -> Dict[str, Any]:
         profile_name = config.get("active_profile", "default")
 
     return config.get("profiles", {}).get(profile_name, {})
+
+
+def save_schedule(name: str, start_time: str, stop_time: str, days: str) -> None:
+    """Save/overwrite a named on/off schedule."""
+    config = load_config()
+    config.setdefault("schedules", {})[name] = {
+        "start_time": start_time,
+        "stop_time": stop_time,
+        "days": days,
+    }
+    save_full_config(config)
+
+
+def get_schedule(name: str) -> Optional[Dict[str, Any]]:
+    """Retrieve a named schedule, or None if it doesn't exist."""
+    config = load_config()
+    return config.get("schedules", {}).get(name)
+
+
+def list_schedules() -> Dict[str, Any]:
+    """Retrieve all named schedules."""
+    config = load_config()
+    return config.get("schedules", {})

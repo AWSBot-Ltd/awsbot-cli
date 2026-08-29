@@ -18,6 +18,7 @@ from awsbot_cli.commands import (
     infra,
     logs,
     s3,
+    scheduler,
     vpn,
     workflow,
 )
@@ -41,6 +42,7 @@ app.add_typer(ec2.app, name="ec2")
 app.add_typer(bedrock.app, name="bedrock")
 app.add_typer(agent.app, name="agent")
 app.add_typer(agent_config.app, name="agent-config")
+app.add_typer(scheduler.app, name="scheduler")
 
 
 class LogFormat(str, Enum):

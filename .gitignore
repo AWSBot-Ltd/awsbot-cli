@@ -119,7 +119,8 @@ token.json
 !buckets.txt
 *.sql
 aws-bedrock-chat/
-awsbot_cli/cloudformation/
+awsbot_cli/cloudformation/ses/
+awsbot_cli/cloudformation/scheduler/src/
 
 # open-webui secret key
 .webui_secret_key

@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'EC2/ASG instance scheduler - Lambda + EventBridge start/stop schedules for one named schedule'
+
+Parameters:
+  ScheduleName:
+    Description: Name of the schedule this stack manages (must match the Schedule tag value on resources)
+    Type: String
+  StartCron:
+    Description: EventBridge cron expression for the start action, e.g. cron(0 7 ? * MON-FRI *)
+    Type: String
+  StopCron:
+    Description: EventBridge cron expression for the stop action, e.g. cron(0 20 ? * MON-FRI *)
+    Type: String
+
+Resources:
+  SchedulerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'awsbot-scheduler-${ScheduleName}'
+      Handler: awsbot_cli.lambda_functions.scheduler.handler
+      Runtime: python3.11
+      Timeout: 300
+      CodeUri: src/
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ec2:DescribeInstances
+                - ec2:StartInstances
+                - ec2:StopInstances
+                - ec2:CreateTags
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - autoscaling:DescribeAutoScalingGroups
+                - autoscaling:SuspendProcesses
+                - autoscaling:ResumeProcesses
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - elasticbeanstalk:DescribeEnvironments
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - rds:DescribeDBInstances
+                - rds:StartDBInstance
+                - rds:StopDBInstance
+              Resource: '*'
+      Events:
+        StartSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref StartCron
+            Input: !Sub '{"schedule": "${ScheduleName}", "action": "start"}'
+        StopSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref StopCron
+            Input: !Sub '{"schedule": "${ScheduleName}", "action": "stop"}'
+
+  # Console "Execute automation" button for non-technical manual overrides
+  # (e.g. starting instances on a weekend). Runs under the caller's own IAM
+  # identity (no assumeRole), so CloudTrail attributes each run to the actual
+  # person and the required grant stays narrow -- see IAM_NOTES.md-equivalent
+  # reminder printed by `scheduler deploy`.
+  SchedulerOverrideRunbook:
+    Type: AWS::SSM::Document
+    Properties:
+      Name: !Sub 'awsbot-scheduler-${ScheduleName}-override'
+      DocumentType: Automation
+      DocumentFormat: YAML
+      Content:
+        Fn::Sub: |
+          schemaVersion: '0.3'
+          description: "Manually start or stop the '${ScheduleName}' scheduled instances/ASGs."
+          parameters:
+            Action:
+              type: String
+              allowedValues:
+                - start
+                - stop
+              description: "Start or stop the resources tagged Schedule=${ScheduleName}"
+          mainSteps:
+            - name: InvokeScheduler
+              action: aws:invokeLambdaFunction
+              inputs:
+                FunctionName: '${SchedulerFunction}'
+                InvocationType: RequestResponse
+                InputPayload:
+                  schedule: '${ScheduleName}'
+                  action: '{{ Action }}'
