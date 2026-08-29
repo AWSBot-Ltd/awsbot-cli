@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "amazon-bedrock": {
+      "options": {
+        "region": "eu-west--1",
+        "profile": "awsbot"
+      }
+    }
+  }
+}
