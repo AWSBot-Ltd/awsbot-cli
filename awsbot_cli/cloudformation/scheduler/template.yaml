@@ -20,7 +20,7 @@ Resources:
       FunctionName: !Sub 'awsbot-scheduler-${ScheduleName}'
       Handler: awsbot_cli.lambda_functions.scheduler.handler
       Runtime: python3.11
-      Timeout: 300
+      Timeout: 900
       CodeUri: src/
       Policies:
         - Statement:

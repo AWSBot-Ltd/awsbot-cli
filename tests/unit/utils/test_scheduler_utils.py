@@ -326,6 +326,68 @@ def test_tag_schedule_db_instance(ec2_client, asg_client, rds_client):
     assert {"Key": "Schedule", "Value": "office-hours"} in tags
 
 
+def test_apply_action_start_orders_db_before_instances(
+    ec2_client, asg_client, rds_client
+):
+    _create_db_instance(rds_client, "my-db")
+    rds_client.stop_db_instance(DBInstanceIdentifier="my-db")
+    resp = ec2_client.run_instances(ImageId="ami-12345678", MinCount=1, MaxCount=1)
+    instance_id = resp["Instances"][0]["InstanceId"]
+    resources = {
+        "instances": [{"InstanceId": instance_id, "State": "stopped", "Tags": {}}],
+        "asgs": [],
+        "db_instances": [
+            {"DBInstanceIdentifier": "my-db", "Status": "stopped", "Tags": {}}
+        ],
+    }
+
+    rows = apply_action(
+        ec2_client, asg_client, "start", resources, dry_run=False, rds_client=rds_client
+    )
+
+    types_in_order = [r["type"] for r in rows]
+    assert types_in_order.index("db_instance") < types_in_order.index("instance")
+    assert rows[types_in_order.index("db_instance")]["status"] == "Started"
+    assert rows[types_in_order.index("instance")]["status"] == "Started"
+
+
+def test_apply_action_start_dry_run_skips_wait(ec2_client, asg_client, rds_client):
+    _create_db_instance(rds_client, "my-db")
+    resources = {
+        "instances": [],
+        "asgs": [],
+        "db_instances": [
+            {"DBInstanceIdentifier": "my-db", "Status": "stopped", "Tags": {}}
+        ],
+    }
+
+    rows = apply_action(
+        ec2_client, asg_client, "start", resources, dry_run=True, rds_client=rds_client
+    )
+
+    assert rows[0]["status"] == "Would start"
+
+
+def test_apply_action_start_wait_timeout_is_swallowed(ec2_client, asg_client):
+    rds_client = MagicMock()
+    rds_client.get_waiter.return_value.wait.side_effect = Exception(
+        "Max attempts exceeded"
+    )
+    resources = {
+        "instances": [],
+        "asgs": [],
+        "db_instances": [
+            {"DBInstanceIdentifier": "my-db", "Status": "starting", "Tags": {}}
+        ],
+    }
+
+    rows = apply_action(
+        ec2_client, asg_client, "start", resources, dry_run=False, rds_client=rds_client
+    )
+
+    assert rows[0]["status"] == "Started"
+
+
 def test_tag_schedule_instance(ec2_client, asg_client):
     resp = ec2_client.run_instances(ImageId="ami-12345678", MinCount=1, MaxCount=1)
     instance_id = resp["Instances"][0]["InstanceId"]

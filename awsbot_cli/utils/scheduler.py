@@ -171,8 +171,21 @@ def apply_action(
     branch if Aurora scheduling is ever needed. Also note: AWS auto-restarts
     an RDS instance that's been stopped for 7 days; this scheduler doesn't
     fight that.
+
+    ponytail: on `start`, DB instances are started (and waited on to reach
+    "available") before the EC2/ASG app tier -- RDS takes minutes to come up
+    where EC2 takes seconds, so starting them together races the app against
+    its own database on every boot. The wait is bounded and fails open: if a
+    DB isn't ready in time we log a warning and start the app tier anyway,
+    rather than blocking the schedule indefinitely. On `stop` the order is
+    unchanged (app tier down first, DB last).
     """
     rows = []
+
+    db_instances = resources.get("db_instances", [])
+    if action == "start":
+        rows.extend(_apply_db_action(rds_client, action, db_instances, dry_run))
+        _wait_for_db_instances_available(rds_client, db_instances, dry_run)
 
     eb_env_names = [
         asg.get("Tags", {}).get(EB_ENV_TAG_KEY) for asg in resources.get("asgs", [])
@@ -239,7 +252,20 @@ def apply_action(
             }
         )
 
-    for db in resources.get("db_instances", []):
+    if action != "start":
+        rows.extend(_apply_db_action(rds_client, action, db_instances, dry_run))
+
+    return rows
+
+
+def _apply_db_action(
+    rds_client,
+    action: Literal["start", "stop"],
+    db_instances: list[dict],
+    dry_run: bool,
+) -> list[dict]:
+    rows = []
+    for db in db_instances:
         db_id = db["DBInstanceIdentifier"]
         try:
             if dry_run:
@@ -262,8 +288,37 @@ def apply_action(
                 "status": status,
             }
         )
-
     return rows
+
+
+def _wait_for_db_instances_available(
+    rds_client, db_instances: list[dict], dry_run: bool
+) -> None:
+    """
+    Block (bounded, ~8 min per instance) until each DB instance reports
+    "available", so the app tier isn't started against a database that
+    isn't accepting connections yet. Fails open: a timeout is logged and
+    swallowed rather than raised, so a slow/stuck DB doesn't stop the app
+    tier from starting at all.
+
+    ponytail: budget is sized against the Lambda's 900s (15 min, the AWS
+    max) timeout -- ~8 min for the DB, leaving the remainder for the
+    EC2/ASG starts that follow. Bump both together if either changes.
+    """
+    if dry_run:
+        return
+    waiter = rds_client.get_waiter("db_instance_available")
+    for db in db_instances:
+        db_id = db["DBInstanceIdentifier"]
+        try:
+            waiter.wait(
+                DBInstanceIdentifier=db_id,
+                WaiterConfig={"Delay": 20, "MaxAttempts": 24},
+            )
+        except Exception as e:
+            logger.warning(
+                f"DB instance {db_id} did not become available within the wait budget: {e}"
+            )
 
 
 def list_all(ec2_client, asg_client, eb_client=None, rds_client=None) -> dict:
