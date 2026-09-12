@@ -12,6 +12,10 @@ Parameters:
   StopCron:
     Description: EventBridge cron expression for the stop action, e.g. cron(0 20 ? * MON-FRI *)
     Type: String
+  ScheduleTimezone:
+    Description: IANA timezone the cron expressions are evaluated in (handles BST/GMT DST automatically)
+    Type: String
+    Default: Europe/London
 
 Resources:
   SchedulerFunction:
@@ -47,17 +51,55 @@ Resources:
                 - rds:StartDBInstance
                 - rds:StopDBInstance
               Resource: '*'
-      Events:
-        StartSchedule:
-          Type: Schedule
-          Properties:
-            Schedule: !Ref StartCron
-            Input: !Sub '{"schedule": "${ScheduleName}", "action": "start"}'
-        StopSchedule:
-          Type: Schedule
-          Properties:
-            Schedule: !Ref StopCron
-            Input: !Sub '{"schedule": "${ScheduleName}", "action": "stop"}'
+
+  # EventBridge Scheduler (not classic EventBridge Rules -- those only
+  # support UTC cron with no timezone param, which is why the schedule was
+  # firing an hour off during BST). ScheduleExpressionTimezone here handles
+  # the BST/GMT switch automatically via IANA DST rules.
+  SchedulerInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeSchedulerFunction
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt SchedulerFunction.Arn
+
+  StartSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub 'awsbot-scheduler-${ScheduleName}-start'
+      ScheduleExpression: !Ref StartCron
+      ScheduleExpressionTimezone: !Ref ScheduleTimezone
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt SchedulerFunction.Arn
+        RoleArn: !GetAtt SchedulerInvokeRole.Arn
+        Input: !Sub '{"schedule": "${ScheduleName}", "action": "start"}'
+
+  StopSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: !Sub 'awsbot-scheduler-${ScheduleName}-stop'
+      ScheduleExpression: !Ref StopCron
+      ScheduleExpressionTimezone: !Ref ScheduleTimezone
+      FlexibleTimeWindow:
+        Mode: 'OFF'
+      Target:
+        Arn: !GetAtt SchedulerFunction.Arn
+        RoleArn: !GetAtt SchedulerInvokeRole.Arn
+        Input: !Sub '{"schedule": "${ScheduleName}", "action": "stop"}'
 
   # Console "Execute automation" button for non-technical manual overrides
   # (e.g. starting instances on a weekend). Runs under the caller's own IAM
