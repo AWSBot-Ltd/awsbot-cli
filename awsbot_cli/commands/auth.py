@@ -2,30 +2,27 @@
 import os
 import boto3
 import typer
-from botocore.exceptions import ClientError
 from rich.console import Console
 
 # Assuming load_config/save_config can handle nested dicts or you update them to do so
-from awsbot_cli.utils.config import load_config, save_full_config
+from awsbot_cli.utils.config import load_config, save_full_config, update_profile
 
 app = typer.Typer(help="Authentication and Credential Management")
 console = Console()
 
-from awsbot_cli.utils.config import update_profile
-
 
 @app.command()
 def configure(
-        profile: str = typer.Option("default", "--profile", "-p", help="Profile name"),
-        # AWS
-        aws_profile: str = typer.Option(None, help="Source AWS Profile"),
-        mfa_arn: str = typer.Option(None, help="MFA Device ARN"),
-        # Vendors - These are the new ones you wanted
-        jira_url: str = typer.Option(None, help="Jira Base URL"),
-        jira_email: str = typer.Option(None, help="Jira Login Email"),
-        jira_token: str = typer.Option(None, help="Jira API Token"),
-        gitlab_token: str = typer.Option(None, help="GitLab Personal Access Token"),
-        github_token: str = typer.Option(None, help="GitHub Personal Access Token"),
+    profile: str = typer.Option("default", "--profile", "-p", help="Profile name"),
+    # AWS
+    aws_profile: str = typer.Option(None, help="Source AWS Profile"),
+    mfa_arn: str = typer.Option(None, help="MFA Device ARN"),
+    # Vendors - These are the new ones you wanted
+    jira_url: str = typer.Option(None, help="Jira Base URL"),
+    jira_email: str = typer.Option(None, help="Jira Login Email"),
+    jira_token: str = typer.Option(None, help="Jira API Token"),
+    gitlab_token: str = typer.Option(None, help="GitLab Personal Access Token"),
+    github_token: str = typer.Option(None, help="GitHub Personal Access Token"),
 ):
     """
     Update credentials for a specific profile context.
@@ -56,12 +53,12 @@ def configure(
 
 @app.command()
 def login(
-        profile: str = typer.Option(
-            None, "--profile", "-p", help="The CLI profile to log in with"
-        ),
-        token_code: str = typer.Option(
-            ..., prompt="Enter MFA Token Code", help="The 6-digit code"
-        )
+    profile: str = typer.Option(
+        None, "--profile", "-p", help="The CLI profile to log in with"
+    ),
+    token_code: str = typer.Option(
+        ..., prompt="Enter MFA Token Code", help="The 6-digit code"
+    ),
 ):
     """
     Authenticate using MFA for the specified profile.
@@ -73,7 +70,9 @@ def login(
     profile_data = config.get("profiles", {}).get(active_profile_name)
 
     if not profile_data:
-        console.print(f"[bold red]Error:[/bold red] Profile '{active_profile_name}' not found.")
+        console.print(
+            f"[bold red]Error:[/bold red] Profile '{active_profile_name}' not found."
+        )
         raise typer.Exit(code=1)
 
     # Extract AWS specific details from that profile
@@ -81,20 +80,30 @@ def login(
     mfa_arn = profile_data.get("mfa_arn")
 
     if not aws_profile or not mfa_arn:
-        console.print("[bold red]Error:[/bold red] AWS details missing in this profile.")
+        console.print(
+            "[bold red]Error:[/bold red] AWS details missing in this profile."
+        )
         raise typer.Exit(code=1)
 
-    console.print(f"Authenticating profile [bold blue]{active_profile_name}[/bold blue] (AWS: {aws_profile})...")
+    console.print(
+        f"Authenticating profile [bold blue]{active_profile_name}[/bold blue] (AWS: {aws_profile})..."
+    )
 
     # Clear env vars so boto3 uses the explicit profile
-    env_vars_to_clear = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"]
+    env_vars_to_clear = [
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+    ]
     for var in env_vars_to_clear:
         os.environ.pop(var, None)
 
     try:
         session = boto3.Session(profile_name=aws_profile)
         sts_client = session.client("sts")
-        response = sts_client.get_session_token(SerialNumber=mfa_arn, TokenCode=token_code)
+        response = sts_client.get_session_token(
+            SerialNumber=mfa_arn, TokenCode=token_code
+        )
         creds = response["Credentials"]
 
         # Save cached credentials INTO the specific profile
@@ -109,7 +118,9 @@ def login(
         config["profiles"][active_profile_name] = profile_data
         save_full_config(config)
 
-        console.print(f"[green]Success![/green] Session cached for profile '{active_profile_name}'.")
+        console.print(
+            f"[green]Success![/green] Session cached for profile '{active_profile_name}'."
+        )
 
     except Exception as e:
         console.print(f"[bold red]Auth Error:[/bold red] {e}")

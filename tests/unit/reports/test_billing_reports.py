@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, patch
 from awsbot_cli.reports.billing import get_monthly_cost_by_service, get_billing_data
 
-
 # --- Mock Data Helpers ---
 
 

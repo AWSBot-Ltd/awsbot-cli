@@ -20,7 +20,6 @@ dependencies = [
     "cryptography (>=46.0.4,<47.0.0)",
     "jinja2 (>=3.1.6,<4.0.0)",
     "gitpython (>=3.1.46,<4.0.0)",
-    "open-webui (>=0.6.0) ; python_version < \"3.13\"",
     "fastapi (>=0.115.0,<1.0.0)",
     "uvicorn (>=0.29.0,<1.0.0)",
     "tiktoken (>=0.9.0,<1.0.0)",
@@ -29,7 +28,6 @@ dependencies = [
     "mcp[cli] (>=1.7.0)",
     "qdrant-client (>=1.10.0)",
     "pathspec (>=0.12.1)",
-    "fastembed (>=0.6.0)",
     "anthropic (>=0.40.0,<1.0.0)",
     "openai (>=1.0.0,<2.0.0)",
     "ddgs (>=6.0.0)",
@@ -47,6 +45,12 @@ awsbot-cli = "awsbot_cli.main:main"
 
 [project.optional-dependencies]
 terminal = ["open-terminal"]
+# open-webui and fastembed are intentionally NOT declared here. open-webui is launched as a
+# subprocess (`open-webui serve` in commands/bedrock.py), never imported, and hard-pins
+# openai==2.29 / tiktoken==0.13 which conflict with this CLI's own pins; fastembed is imported
+# behind a try/except fallback. Install them separately when those features are needed:
+#   pipx install open-webui     # for `awsbot-cli bedrock gateway`
+#   pip install fastembed       # for the code-indexer embeddings
 
 [dependency-groups]
 dev = [

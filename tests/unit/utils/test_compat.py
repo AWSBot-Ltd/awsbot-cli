@@ -4,7 +4,6 @@ from types import SimpleNamespace
 # Adjust the import path to match your project structure
 from awsbot_cli.utils.compat import create_args_namespace
 
-
 pytestmark = pytest.mark.unit
 
 

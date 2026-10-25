@@ -35,6 +35,11 @@ isort-check: ## Lint code with isort
 	@echo "Linting code with ruff..."
 	poetry run isort check .
 
+# Aliases so the CI matrix (linting.yml runs `make <linter>`) resolves.
+black: black-check
+flake8: flake8-check
+ruff: ruff-check
+
 # --- Tests ---
 test: ## Runs tests based on MARK.
 	@echo "Running tests with filter: $(MARK)"
