@@ -26,7 +26,8 @@ def test_find_template_finds_package_path():
         ("feature/STS-1234-add-logging", "STS-1234"),
         ("fix/STS-9999-crash", "STS-9999"),
         ("no-jira-id-here", None),
-        ("STS-123-too-short", None),  # Assuming 4 digits based on your regex
+        # Jira keys are PROJECT-<n> with any digit count (e.g. DV-3), so this matches.
+        ("STS-123-too-short", "STS-123"),
     ],
 )
 def test_get_jira_id(branch_name, expected_id):

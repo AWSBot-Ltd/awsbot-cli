@@ -6,6 +6,11 @@ from ..utils.scheduler import apply_action, discover_resources
 logger = get_logger(__name__)
 
 
+def scrub_for_log(value):
+    """Flatten CR/LF so event-supplied values can't forge log lines (CWE-117)."""
+    return str(value).replace("\n", " ").replace("\r", " ")
+
+
 def handler(event, context):
     event = event or {}
     schedule_name = event["schedule"]
@@ -16,7 +21,11 @@ def handler(event, context):
     eb = boto3.client("elasticbeanstalk")
     rds = boto3.client("rds")
 
-    logger.info(f"--- Schedule: {schedule_name} | Action: {action} ---")
+    logger.info(
+        "--- Schedule: %s | Action: %s ---",
+        scrub_for_log(schedule_name),
+        scrub_for_log(action),
+    )
 
     resources = discover_resources(ec2, asg, schedule_name, rds_client=rds)
     results = apply_action(

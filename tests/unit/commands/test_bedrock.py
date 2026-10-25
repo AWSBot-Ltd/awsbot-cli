@@ -49,7 +49,10 @@ def test_list_models_success(mock_bedrock_client):
             }
         ]
     }
-    result = runner.invoke(awsbot_cli.commands.bedrock.app, ["list-models"])
+    # Wide terminal so Rich doesn't truncate the long model id in the table.
+    result = runner.invoke(
+        awsbot_cli.commands.bedrock.app, ["list-models"], env={"COLUMNS": "200"}
+    )
     assert result.exit_code == 0
     assert "anthropic.claude-3-haiku-20240307-v1:0" in result.stdout
     assert "Anthropic" in result.stdout

@@ -10,7 +10,6 @@ from awsbot_cli.workflow.gitlab_utils import (
     post_gemini_review,
 )
 
-
 # --- Fixtures ---
 
 

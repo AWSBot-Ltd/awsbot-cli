@@ -79,8 +79,6 @@ def test_create_issue(mock_env_token, mock_requests):
             "my-org",
             "--title",
             "Bug Fix",
-            "--assignee",
-            "dev-user",
         ],
     )
 

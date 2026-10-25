@@ -85,3 +85,14 @@ def test_handler_stops_only_tagged_db_instance(mock_get_logger, ec2_client, rds_
     result_ids = {r["resource_id"] for r in response["details"]["results"]}
     assert "tagged-db" in result_ids
     assert "untagged-db" not in result_ids
+
+
+def test_scrub_for_log_strips_crlf():
+    from awsbot_cli.lambda_functions.scheduler import scrub_for_log
+
+    # CR/LF (a forged "INFO admin logged in" line) is flattened to spaces
+    assert scrub_for_log("office-hours\nINFO forged") == "office-hours INFO forged"
+    assert scrub_for_log("stop\r\nhacked") == "stop  hacked"
+    # ordinary values are unchanged
+    assert scrub_for_log("office-hours") == "office-hours"
+    assert scrub_for_log(123) == "123"

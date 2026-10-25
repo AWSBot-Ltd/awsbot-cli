@@ -26,7 +26,6 @@ from awsbot_cli.commands.agent import (
     tool_definitions,
 )
 
-
 # --- Fake Brain for Testing ---
 
 
@@ -376,29 +375,30 @@ def test_compact_conversation_summarizes():
 
 
 def test_agent_config_set_saves_to_profile(monkeypatch):
-    """Verify agent-config set saves settings to profile."""
-    config_data = {"profiles": {}, "active_profile": "default"}
+    """agent-config set builds the agent dict and saves it to the profile via update_profile."""
+    from unittest.mock import MagicMock
 
-    def mock_load_config():
-        return config_data
+    from awsbot_cli.commands import agent_config
 
-    def mock_update_profile(profile_name, **kwargs):
-        if profile_name not in config_data["profiles"]:
-            config_data["profiles"][profile_name] = {}
-        if "agent" in kwargs:
-            config_data["profiles"][profile_name]["agent"] = kwargs["agent"]
+    saved = {}
 
-    monkeypatch.setattr(
-        "awsbot_cli.commands.agent_config.load_config", mock_load_config
+    def fake_update_profile(profile_name, **kwargs):
+        saved[profile_name] = kwargs
+
+    monkeypatch.setattr(agent_config, "update_profile", fake_update_profile)
+
+    ctx = MagicMock()
+    ctx.meta = {}
+    agent_config.set_config(
+        ctx,
+        provider="bedrock",
+        model="test-model",
+        region=None,
+        timeout=None,
+        profile="default",
     )
-    monkeypatch.setattr(
-        "awsbot_cli.commands.agent_config.update_profile", mock_update_profile
-    )
 
-    # Simulate calling update_profile
-    mock_update_profile("default", agent={"provider": "bedrock", "model": "test-model"})
-
-    assert config_data["profiles"]["default"]["agent"]["provider"] == "bedrock"
+    assert saved["default"]["agent"] == {"provider": "bedrock", "model": "test-model"}
 
 
 def test_agent_config_reads_from_profile(monkeypatch):
