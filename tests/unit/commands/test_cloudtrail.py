@@ -1,6 +1,6 @@
 """Unit tests for CloudTrail auditing CLI commands."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -40,13 +40,19 @@ def test_deletion_audit_rejects_start_after_end(mock_ct_client):
 
 
 def test_deletion_audit_no_events(mock_ct_client):
+    # Use a window inside the last 90 days so the command stays on the Event History
+    # path (a hardcoded past date would age past 90 days and divert to the Athena
+    # full-history branch this test doesn't mock).
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+    end = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     with (
         patch(f"{PATCH_PATH}.check_trail_data_events", return_value=[]),
         patch(f"{PATCH_PATH}.find_deletion_events", return_value=[]),
     ):
         result = runner.invoke(
             awsbot_cli.commands.cloudtrail.app,
-            ["--start", "2026-03-17", "--end", "2026-06-17"],
+            ["--start", start, "--end", end],
         )
     assert result.exit_code == 0
     assert "No deletion/disposal events found" in result.stdout
